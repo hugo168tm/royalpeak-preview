@@ -318,31 +318,48 @@ button.copy.done{background:#0ea5e9;color:#fff}
 </section>
 <script>
 function flash(btn, ok){
-  const old = btn.textContent;
-  btn.textContent = ok ? '✅ 已複製' : '⚠️ 請長按選取';
+  const old = btn.dataset.label || btn.textContent;
+  btn.dataset.label = old;
+  btn.textContent = ok ? '✅ 已複製' : '⬇️ 手動複製';
   btn.classList.add('done');
   setTimeout(()=>{ btn.textContent = old; btn.classList.remove('done'); }, 1800);
 }
-function copyFromTA(ta){
-  ta.removeAttribute('aria-hidden');
-  ta.style.position='fixed'; ta.style.left='0'; ta.style.top='0'; ta.style.opacity='0.01';
-  ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length);
-  let ok=false;
-  try{ ok = document.execCommand('copy'); }catch(e){ ok=false; }
-  ta.blur();
-  ta.style.position='absolute'; ta.style.left='-9999px'; ta.style.top='0'; ta.style.opacity='0';
-  ta.setAttribute('aria-hidden','true');
-  return ok;
+function fallbackModal(text){
+  let m = document.getElementById('copyModal');
+  if(!m){
+    m = document.createElement('div');
+    m.id='copyModal';
+    m.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px';
+    m.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:86vh;display:flex;flex-direction:column;overflow:hidden">'
+      + '<div style="padding:10px 14px;background:#1f4e79;color:#fff;font-weight:700;display:flex;justify-content:space-between;align-items:center"><span>手動複製（長按全選 → 複製）</span><button id="copyModalClose" style="background:#fff;color:#1f4e79;border:0;border-radius:8px;padding:6px 10px;font-weight:700">關閉</button></div>'
+      + '<textarea id="copyModalTA" readonly style="flex:1;min-height:50vh;border:0;padding:12px;font-size:14px;line-height:1.6;font-family:ui-monospace,monospace"></textarea></div>';
+    document.body.appendChild(m);
+    m.querySelector('#copyModalClose').onclick = ()=>m.remove();
+    m.onclick = e=>{ if(e.target===m) m.remove(); };
+  }
+  const ta = m.querySelector('#copyModalTA');
+  ta.value = text; m.style.display='flex';
+  setTimeout(()=>{ ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); }, 60);
 }
 async function doCopy(btn){
   const ta = document.getElementById(btn.dataset.target);
   if(!ta){ flash(btn,false); return; }
+  const text = ta.value;
   let ok=false;
   if(navigator.clipboard && window.isSecureContext){
-    try{ await navigator.clipboard.writeText(ta.value); ok=true; }catch(e){ ok=false; }
+    try{ await navigator.clipboard.writeText(text); ok=true; }catch(e){ ok=false; }
   }
-  if(!ok) ok = copyFromTA(ta);
+  if(!ok){
+    try{
+      const tmp=document.createElement('textarea');
+      tmp.value=text; tmp.style.cssText='position:fixed;top:0;left:0;opacity:0.01';
+      document.body.appendChild(tmp); tmp.focus(); tmp.select();
+      ok = document.execCommand('copy');
+      tmp.remove();
+    }catch(e){ ok=false; }
+  }
   flash(btn, ok);
+  if(!ok) fallbackModal(text);
 }
 document.addEventListener('click', e=>{
   const b = e.target.closest('button.copy');
